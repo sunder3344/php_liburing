@@ -1,0 +1,7 @@
+ARG_ENABLE('liburing', 'liburing support', 'no');
+
+if (PHP_LIBURING != 'no') {
+	AC_DEFINE('HAVE_LIBURING', 1, 'liburing support enabled');
+
+	EXTENSION('liburing', 'liburing.c', null, '/DZEND_ENABLE_STATIC_TSRMLS_CACHE=1');
+}
