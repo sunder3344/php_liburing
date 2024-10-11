@@ -6,6 +6,7 @@ const LISTENQ = 10;
 const CQE_LEN = 10;
 const RING_LEN = 1024;			//ring queue num
 const MAXLINE = 4096;			//buffer length
+const MAX_CONN = 4096;			//connect_pool length
 
 const IO_TYPE_DISK = 1;
 const IO_TYPE_SOCKET = 2;
@@ -15,17 +16,18 @@ $server_port = 8888;
 $server_addr = "0.0.0.0";
 
 function set_accept_event($ring, $sfd, $clientAddr, $clilen, $flags = 0) {
+	global $pool;
 	$sqe = io_uring_get_sqe($ring);
 	io_uring_prep_accept($sqe, $sfd, $clientAddr, $clilen, $flags);
 	
-	$info = io_get_conn_info();
+	$info = get_conn_info($pool);
 	if ($info) {
 		io_set_conn_val($info, "connfd", $sfd);
 		io_set_conn_val($info, "event", EVENT_ACCEPT);
 		io_uring_sqe_set_data($sqe, $info, IO_TYPE_SOCKET);
 	} else {
 		echo "Get conn failed...";
-		io_free_conn($info);
+		$pool = return_conn_info($pool, $info);
 	}
 }
 
@@ -76,6 +78,7 @@ if ($listenResult === false) {
 //init uring
 $ring = io_create_ring();
 $params = io_init_params();
+$pool = init_conn_pool(MAX_CONN);
 io_setup_params($params, "flags", IORING_SETUP_SQPOLL);
 io_setup_params($params, "sq_thread_idle", 2000);
 $res = io_uring_queue_init_params(RING_LEN, $ring, $params);
@@ -124,34 +127,34 @@ while (true) {
 		if (io_get_conn_val($ci, "event") == EVENT_ACCEPT) {
 			if (io_get_cqe_res($new_cqe) < 0) {
 				echo "cqe->res=".io_get_cqe_res($new_cqe);
-				io_free_conn($ci);
+				$pool = return_conn_info($pool, $ci);
 				continue;
 			}
 			$connfd = io_get_cqe_res($new_cqe);				//if cqe->res > 0, it means success，res is new fd
-			$new_info = io_get_conn_info();
+			$new_info = get_conn_info($pool);
 			if ($new_info) {
 				set_recv_event($ring, $connfd, $new_info, 0);
 			} else {
 				echo "Get conn failed!";
 				io_close_fd(io_get_conn_val($ci, "connfd"));
-				io_free_conn($ci);
+				$pool = return_conn_info($pool, $ci);
 				continue;
 			}
 			set_accept_event($ring, io_get_conn_val($ci, "connfd"), $clientAddr, $clilen, 0);
-			io_free_conn($ci);
+			$pool = return_conn_info($pool, $ci);
 		} else if (io_get_conn_val($ci, "event") == EVENT_READ) {
 			
 			if (io_get_cqe_res($new_cqe) == 0) {
 				echo "client close\n";
 				io_close_fd(io_get_conn_val($ci, "connfd"));
-				io_free_conn($ci);
+				$pool = return_conn_info($pool, $ci);
 			} else if (io_get_cqe_res($new_cqe) < 0) {
 				echo "read error, cqe_res=".io_get_cqe_res($new_cqe);
 				io_close_fd(io_get_conn_val($ci, "connfd"));
-				io_free_conn($ci);
+				$pool = return_conn_info($pool, $ci);
 			} else {
 				//self-defined response
-				$buff = io_get_conn_val($ci, "buffer");
+				/*$buff = io_get_conn_val($ci, "buffer");
 				$buff_len = io_get_cqe_res($new_cqe);
 				$buff_str = io_buffer2Str($buff, $buff_len);
 				echo "recv: ".$buff.", ".$buff_str.PHP_EOL;
@@ -161,16 +164,16 @@ while (true) {
 				io_str2Buffer($buff, $echoStr);
 				io_set_conn_val($ci, "buffer", $buff);
 				io_set_conn_val($ci, "buffer_length", strlen($echoStr));
-				set_send_event($ring, io_get_conn_val($ci, "connfd"), $ci, strlen($echoStr), 0);
+				set_send_event($ring, io_get_conn_val($ci, "connfd"), $ci, strlen($echoStr), 0);*/
 				
 				//echo response
-				//set_send_event($ring, io_get_conn_val($ci, "connfd"), $ci, io_get_cqe_res($new_cqe), 0);
+				set_send_event($ring, io_get_conn_val($ci, "connfd"), $ci, io_get_cqe_res($new_cqe), 0);
 			}
 		} else if (io_get_conn_val($ci, "event") == EVENT_WRITE) {
 			if (io_get_cqe_res($new_cqe) < 0) {
 				echo ("write error, cqe_res=".io_get_cqe_res($new_cqe));
 				io_close_fd(io_get_conn_val($ci, "connfd"));
-				io_free_conn($ci);
+				$pool = return_conn_info($pool, $ci);
 			}
 			set_recv_event($ring, io_get_conn_val($ci, "connfd"), $ci, 0);
 		}
@@ -186,6 +189,8 @@ socket_close($serverSocket);
 io_free_params($params);
 //close ring
 io_free_ring($ring);
+//free connection pool
+release_conn_info($pool);
 //free socketaddr
 io_free_socket_addr($clientAddr);
 //free socklen
