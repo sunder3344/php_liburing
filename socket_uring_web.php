@@ -50,12 +50,12 @@ function set_send_event($ring, $sfd, $info, $length, $flags) {
 
 function render($ring, $ci, $path) {
 	$file_url = SERVER_DIR . $path;
-	/*if (!file_exists($file_url)) {
+	if (!file_exists($file_url)) {
 		$content = "file not found";
 	} else {
 		$content = file_get_contents($file_url);
-	}*/
-	$content = "derek sunder";
+	}
+	//$content = "derek sunder";
 	$response = "HTTP/1.1 200 OK\r\n" .
 			"Content-Type: text/html\r\n" .
 			"Content-Length: " . strlen($content) . "\r\n" .
