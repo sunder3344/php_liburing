@@ -69,6 +69,8 @@ function io_uring_queue_init_params(int $depth, int $ring, int $params): int {}
 
 function io_create_socket_len(): int {}
 
+function io_free_socket_len(int $len): void {}
+
 function io_create_socket_addr(): int {}
 
 function io_free_socket_addr(int $addr): void {}

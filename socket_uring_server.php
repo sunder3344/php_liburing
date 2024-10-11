@@ -200,5 +200,8 @@ io_free_params($params);
 io_free_ring($ring);
 //free connection pool
 //release_conn_info($pool);
+//free socketaddr
 io_free_socket_addr($clientAddr);
+//free socklen
+io_free_socket_len($clilen);
 ?>

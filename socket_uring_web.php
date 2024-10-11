@@ -198,5 +198,8 @@ socket_close($serverSocket);
 io_free_params($params);
 //close ring
 io_free_ring($ring);
+//free socketaddr
 io_free_socket_addr($clientAddr);
+//free socklen
+io_free_socket_len($clilen);
 ?>

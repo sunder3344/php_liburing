@@ -758,8 +758,22 @@ PHP_FUNCTION(io_uring_queue_init_params)
 /* {{{ long io_create_socket_len( [ ] ) */
 PHP_FUNCTION(io_create_socket_len)
 {
-	socklen_t clilen = sizeof(struct sockaddr);
-	RETURN_LONG((unsigned long)&clilen);
+	socklen_t *clilen = malloc(sizeof(struct sockaddr));
+	RETURN_LONG((unsigned long)clilen);
+}
+/* }}}*/
+
+/* {{{ long io_free_socket_len( [ ] ) */
+PHP_FUNCTION(io_free_socket_len)
+{
+	unsigned long socklen;
+
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_LONG(socklen)
+	ZEND_PARSE_PARAMETERS_END();
+	socklen_t *len = (socklen_t *)socklen;
+	free(len);
+	RETURN_NULL();
 }
 /* }}}*/
 
@@ -803,8 +817,8 @@ PHP_FUNCTION(io_uring_prep_accept)
 		Z_PARAM_LONG(flags)
 	ZEND_PARSE_PARAMETERS_END();
 
-	socklen_t clilen2 = sizeof(struct sockaddr);
-	io_uring_prep_accept((struct io_uring_sqe *)sqe, fd, (struct sockaddr *)clientAddr, &clilen2, flags);
+	//socklen_t clilen2 = sizeof(struct sockaddr);
+	io_uring_prep_accept((struct io_uring_sqe *)sqe, fd, (struct sockaddr *)clientAddr, (socklen_t *)clilen, flags);
 	RETURN_NULL();
 }
 /* }}}*/
