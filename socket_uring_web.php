@@ -6,20 +6,28 @@ const LISTENQ = 10;
 const CQE_LEN = 10;
 const RING_LEN = 1024;			//ring queue num
 const MAXLINE = 4096;			//buffer length
-const MAX_CONN = 1024;			//list length
-const SERVER_DIR = "./";
+const SERVER_DIR = "/home/sunder/bin/php_liburing";
+
+const IO_TYPE_DISK = 1;
+const IO_TYPE_SOCKET = 2;
+const IORING_SETUP_SQPOLL = 2;
 
 $server_port = 8888;
 $server_addr = "0.0.0.0";
 
-function set_accept_event($ring, $sfd, $flags = 0) {
+function set_accept_event($ring, $sfd, $clientAddr, $clilen, $flags = 0) {
 	$sqe = io_uring_get_sqe($ring);
-	io_uring_prep_accept($sqe, $sfd, $flags);
+	io_uring_prep_accept($sqe, $sfd, $clientAddr, $clilen, $flags);
 	
 	$info = io_get_conn_info();
-	io_set_conn_val($info, "connfd", $sfd);
-	io_set_conn_val($info, "event", EVENT_ACCEPT);
-	io_uring_sqe_set_data($sqe, $info, IO_TYPE_SOCKET);
+	if ($info) {
+		io_set_conn_val($info, "connfd", $sfd);
+		io_set_conn_val($info, "event", EVENT_ACCEPT);
+		io_uring_sqe_set_data($sqe, $info, IO_TYPE_SOCKET);
+	} else {
+		echo "Get conn failed...";
+		io_free_conn($info);
+	}
 }
 
 function set_recv_event($ring, $sfd, $info, $flags) {
@@ -42,18 +50,18 @@ function set_send_event($ring, $sfd, $info, $length, $flags) {
 
 function render($ring, $ci, $path) {
 	$file_url = SERVER_DIR . $path;
-	if (!file_exists($file_url)) {
+	/*if (!file_exists($file_url)) {
 		$content = "file not found";
 	} else {
 		$content = file_get_contents($file_url);
-	}
+	}*/
+	$content = "derek sunder";
 	$response = "HTTP/1.1 200 OK\r\n" .
 			"Content-Type: text/html\r\n" .
 			"Content-Length: " . strlen($content) . "\r\n" .
 			"\r\n" .
 			$content;
 	$buff = io_get_conn_val($ci, "buffer");
-	var_dump($buff);
 	io_str2Buffer($buff, $response);
 	io_set_conn_val($ci, "buffer", $buff);
 	io_set_conn_val($ci, "buffer_length", strlen($response));
@@ -101,26 +109,36 @@ if ($stream === false) {
 
 //file description
 $sockfd = (int) $stream;
+$clilen = io_create_socket_len();
+$clientAddr = io_create_socket_addr();
 
-set_accept_event($ring, $sockfd, 0);
+set_accept_event($ring, $sockfd, $clientAddr, $clilen, 0);
 
 echo "waiting for client: ".$sockfd."...\n";
 
 //receive client msg...
+$cqe = io_generate_cqe();
+$reserve_cqe = $cqe;
+
 while (true) {
 	$tmp = io_uring_submit($ring);
-	$cqe = io_generate_cqe();
+	if ($tmp < 0) {
+		continue;
+	}
+	
 	//waiting here
 	$new_cqe = io_uring_wait_cqe($ring, $cqe);
-	$reserve_cqe = $cqe;
+	if ($new_cqe < 0) {
+		continue;
+	}
 	
 	$cqes = io_generate_cqes(CQE_LEN);
+	
 	$cqecount = io_uring_peek_batch_cqe($ring, $cqes, CQE_LEN);
 	for ($i = 0; $i < $cqecount; $i++) {
 		$new_cqe = io_get_cqe_by_index($cqes, $i);
 		$ci = io_uring_cqe_get_data($new_cqe, IO_TYPE_SOCKET);
 		if (!$ci) {
-			io_free_cqe($new_cqe);
 			continue;
 		}
 		if (io_get_conn_val($ci, "event") == EVENT_ACCEPT) {
@@ -137,8 +155,10 @@ while (true) {
 				echo "Get conn failed!";
 				io_close_fd(io_get_conn_val($ci, "connfd"));
 				io_free_conn($ci);
+				continue;
 			}
-			set_accept_event($ring, io_get_conn_val($ci, "connfd"), 0);
+			set_accept_event($ring, io_get_conn_val($ci, "connfd"), $clientAddr, $clilen, 0);
+			io_free_conn($ci);
 		} else if (io_get_conn_val($ci, "event") == EVENT_READ) {
 			if (io_get_cqe_res($new_cqe) == 0) {
 				echo "client close\n";
@@ -167,14 +187,10 @@ while (true) {
 		}
 	}
 	
-	var_dump("-----------3-----------");
-	io_free_cqe($reserve_cqe);
-	var_dump("-----------4-----------");
 	io_free_cqes($cqes);
-	var_dump("-----------5-----------");
 	io_uring_cq_advance($ring, $cqecount);
-	var_dump("-----------6-----------");
 }
+io_free_cqe($reserve_cqe);
 
 //close socket
 socket_close($serverSocket);
@@ -182,4 +198,5 @@ socket_close($serverSocket);
 io_free_params($params);
 //close ring
 io_free_ring($ring);
+io_free_socket_addr($clientAddr);
 ?>

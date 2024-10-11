@@ -67,7 +67,13 @@ function io_create_ring(): int {}
 
 function io_uring_queue_init_params(int $depth, int $ring, int $params): int {}
 
-function io_uring_prep_accept(int $sqe, int $fd, int $flags): void {}
+function io_create_socket_len(): int {}
+
+function io_create_socket_addr(): int {}
+
+function io_free_socket_addr(int $addr): void {}
+
+function io_uring_prep_accept(int $sqe, int $fd, int $clientAddr, int $clilen, int $flags): void {}
 
 function io_uring_prep_recv(int $sqe, int $fd, int $buffer, int $length, int $flags): void {}
 
@@ -79,9 +85,9 @@ function io_uring_cq_advance(int $ring, int $count): void {}
 
 function io_get_conn_info(): int {}
 
-function io_set_conn_val(int $conn, int $key, int $val): void {}
+function io_set_conn_val(int $conn, string $key, int $val): void {}
 
-function io_get_conn_val(int $conn, int $key): int {}
+function io_get_conn_val(int $conn, string $key): int {}
 
 function io_generate_cqes(int $len): int {}
 
@@ -89,7 +95,7 @@ function io_get_cqe_by_index(int $cqes, int $index): int {}
 
 function io_free_conn(int $conn): void {}
 
-function io_close_fd(int $fd): bool {}
+function io_close_fd(int $fd): void {}
 
 function io_free_cqes(int $cqes): void {}
 
@@ -99,4 +105,4 @@ function io_free_ring(int $ring): void {}
 
 function io_buffer2Str(int $buffer, int $len): string {}
 
-function io_str2Buffer(int $buffer, string $str): void {}
+function io_str2Buffer(int $buffer, string $str): int {}

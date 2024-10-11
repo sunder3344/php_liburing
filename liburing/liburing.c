@@ -151,7 +151,7 @@ PHP_FUNCTION(get_conn_info)
 }
 /* }}}*/
 
-/* {{{ void return_conn_info( [ int $pool, int $conn ] ) */
+/* {{{ int return_conn_info( [ int $pool, int $conn ] ) */
 PHP_FUNCTION(return_conn_info)
 {
 	unsigned long conn = 0;
@@ -350,7 +350,7 @@ PHP_FUNCTION(io_query_data)
 }
 /* }}}*/
 
-/* {{{ long io_free_data( [ int $iodata ] ) */
+/* {{{ void io_free_data( [ int $iodata ] ) */
 PHP_FUNCTION(io_free_data)
 {
 	unsigned long iodata;
@@ -384,7 +384,6 @@ PHP_FUNCTION(io_uring_prep_readv)
 
 	ZEND_PARSE_PARAMETERS_START(5, 5)
 		Z_PARAM_LONG(sqe)
-		//Z_PARAM_LONG(fd)
 		Z_PARAM_RESOURCE(file)
 		Z_PARAM_LONG(iodata)
 		Z_PARAM_LONG(nr_vecs)
@@ -394,7 +393,7 @@ PHP_FUNCTION(io_uring_prep_readv)
 	php_stream_from_zval(stream, file);
 	if (FAILURE == php_stream_cast(stream, PHP_STREAM_AS_FD, (void *) &fd, REPORT_ERRORS)) {
 		php_error_docref(NULL, E_WARNING, "Failed to retrieve file descriptor");
-		RETURN_FALSE;
+		RETURN_LONG(0);
 	}
 	struct io_data *data = (struct io_data *)iodata;
 
@@ -444,7 +443,6 @@ PHP_FUNCTION(io_uring_prep_writev)
 
 	ZEND_PARSE_PARAMETERS_START(5, 5)
 		Z_PARAM_LONG(sqe)
-		//Z_PARAM_LONG(fd)
 		Z_PARAM_RESOURCE(file)
 		Z_PARAM_LONG(iodata)
 		Z_PARAM_LONG(nr_vecs)
@@ -454,7 +452,7 @@ PHP_FUNCTION(io_uring_prep_writev)
 	php_stream_from_zval(stream, file);
 	if (FAILURE == php_stream_cast(stream, PHP_STREAM_AS_FD, (void *) &fd, REPORT_ERRORS)) {
 		php_error_docref(NULL, E_WARNING, "Failed to retrieve file descriptor");
-		RETURN_FALSE;
+		RETURN_LONG(0);
 	}
 	struct io_data *data = (struct io_data *)iodata;
 
@@ -463,7 +461,7 @@ PHP_FUNCTION(io_uring_prep_writev)
 }
 /* }}}*/
 
-/* {{{ io_uring_submit( [ int $ring ] ) */
+/* {{{ long io_uring_submit( [ int $ring ] ) */
 PHP_FUNCTION(io_uring_submit)
 {
 	unsigned long ring;
@@ -478,7 +476,7 @@ PHP_FUNCTION(io_uring_submit)
 }
 /* }}}*/
 
-/* {{{ io_generate_cqe( [ ] ) */
+/* {{{ long io_generate_cqe( [ ] ) */
 PHP_FUNCTION(io_generate_cqe)
 {
 	ZEND_PARSE_PARAMETERS_START(0, 0)
@@ -487,6 +485,7 @@ PHP_FUNCTION(io_generate_cqe)
 
 	struct io_uring_cqe *cqe;
 	cqe = (struct io_uring_cqe *)malloc(sizeof(struct io_uring_cqe));
+	memset(cqe, 0, sizeof(struct io_uring_cqe));
 	RETURN_LONG((unsigned long)cqe);
 }
 /* }}}*/
@@ -526,7 +525,7 @@ PHP_FUNCTION(io_sqe_set_flag)
 }
 /* }}}*/
 
-/* {{{ io_uring_cqe_seen( [ int $ring, int $cqe ] ) */
+/* {{{ long io_uring_cqe_seen( [ int $ring, int $cqe ] ) */
 PHP_FUNCTION(io_uring_cqe_seen)
 {
 	int ret;
@@ -543,7 +542,7 @@ PHP_FUNCTION(io_uring_cqe_seen)
 }
 /* }}}*/
 
-/* {{{ io_uring_wait_cqe( [ int $ring, int $cqe ] ) */
+/* {{{ long io_uring_wait_cqe( [ int $ring, int $cqe ] ) */
 PHP_FUNCTION(io_uring_wait_cqe)
 {
 	int ret;
@@ -569,7 +568,7 @@ PHP_FUNCTION(io_uring_wait_cqe)
 }
 /* }}}*/
 
-/* {{{ io_uring_peek_cqe( [ int $ring, int $cqe ] ) */
+/* {{{ long io_uring_peek_cqe( [ int $ring, int $cqe ] ) */
 PHP_FUNCTION(io_uring_peek_cqe)
 {
 	int ret;
@@ -617,7 +616,7 @@ PHP_FUNCTION(io_cqe_set_flag)
 }
 /* }}}*/
 
-/* {{{ io_uring_cqe_get_data( [ int $cqe, int $type ] ) */
+/* {{{ long io_uring_cqe_get_data( [ int $cqe, int $type ] ) */
 PHP_FUNCTION(io_uring_cqe_get_data)
 {
 	unsigned long cqe;
@@ -631,7 +630,10 @@ PHP_FUNCTION(io_uring_cqe_get_data)
 
 	//php_printf("io_uring_cqe_get_data:=%d, %d, %d", io_type, IO_TYPE_SOCKET, IO_TYPE_DISK);
 	if (io_type == IO_TYPE_SOCKET) {
-		struct ConnInfo *data = io_uring_cqe_get_data((struct io_uring_cqe *)cqe);
+		struct ConnInfo *data = (struct ConnInfo *)io_uring_cqe_get_data((struct io_uring_cqe *)cqe);
+		if (!data) {
+			RETURN_LONG(-1);
+		}
 		RETURN_LONG((unsigned long)data);
 	} else {
 		struct io_data *data = io_uring_cqe_get_data((struct io_uring_cqe *)cqe);
@@ -753,22 +755,56 @@ PHP_FUNCTION(io_uring_queue_init_params)
 }
 /* }}}*/
 
-/* {{{ io_uring_prep_accept( [ int $sqe, int $fd, int $flags ] ) */
+/* {{{ long io_create_socket_len( [ ] ) */
+PHP_FUNCTION(io_create_socket_len)
+{
+	socklen_t clilen = sizeof(struct sockaddr);
+	RETURN_LONG((unsigned long)&clilen);
+}
+/* }}}*/
+
+/* {{{ long io_create_socket_addr( [ ] ) */
+PHP_FUNCTION(io_create_socket_addr)
+{
+	struct sockaddr_in *clientaddr = malloc(sizeof(struct sockaddr_in));
+	RETURN_LONG((unsigned long)clientaddr);
+}
+/* }}}*/
+
+/* {{{ long io_free_socket_addr( [ ] ) */
+PHP_FUNCTION(io_free_socket_addr)
+{
+	unsigned long addr;
+
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_LONG(addr)
+	ZEND_PARSE_PARAMETERS_END();
+	struct sockaddr_in *clientAddr = (struct sockaddr_in *)addr;
+	free(clientAddr);
+	RETURN_NULL();
+}
+/* }}}*/
+
+/* {{{ io_uring_prep_accept( [ int $sqe, int $fd, int $clientAddr, int clilen, int $flags ] ) */
 PHP_FUNCTION(io_uring_prep_accept)
 {
 	unsigned long sqe;
 	unsigned long fd;
+	unsigned long clientAddr;
+	unsigned long clilen;
 	unsigned long flags;
 	struct sockaddr_in clientaddr;
 
-	ZEND_PARSE_PARAMETERS_START(3, 3)
+	ZEND_PARSE_PARAMETERS_START(5, 5)
 		Z_PARAM_LONG(sqe)
 		Z_PARAM_LONG(fd)
+		Z_PARAM_LONG(clientAddr)
+		Z_PARAM_LONG(clilen)
 		Z_PARAM_LONG(flags)
 	ZEND_PARSE_PARAMETERS_END();
 
-	socklen_t clilen = sizeof(struct sockaddr);
-	io_uring_prep_accept((struct io_uring_sqe *)sqe, fd, (struct sockaddr *)&clientaddr, &clilen, flags);
+	socklen_t clilen2 = sizeof(struct sockaddr);
+	io_uring_prep_accept((struct io_uring_sqe *)sqe, fd, (struct sockaddr *)clientAddr, &clilen2, flags);
 	RETURN_NULL();
 }
 /* }}}*/
@@ -819,7 +855,7 @@ PHP_FUNCTION(io_uring_prep_send)
 }
 /* }}}*/
 
-/* {{{ io_uring_peek_batch_cqe( [ int $ring, int $cqes, int $cqe_len ] ) */
+/* {{{ long io_uring_peek_batch_cqe( [ int $ring, int $cqes, int $cqe_len ] ) */
 PHP_FUNCTION(io_uring_peek_batch_cqe)
 {
 	unsigned long ring;
@@ -855,10 +891,11 @@ PHP_FUNCTION(io_uring_cq_advance)
 }
 /* }}}*/
 
-/* {{{ int io_get_conn_info( [ ] ) */
+/* {{{ long io_get_conn_info( [ ] ) */
 PHP_FUNCTION(io_get_conn_info)
 {
 	struct ConnInfo *info = malloc(sizeof(struct ConnInfo));
+	memset(info, 0, sizeof(struct ConnInfo));
 	if (!info) {
 		RETURN_LONG(-1);
 	}
@@ -866,7 +903,7 @@ PHP_FUNCTION(io_get_conn_info)
 }
 /* }}}*/
 
-/* {{{ io_set_conn_val( [ $conn, $key, $val ] ) */
+/* {{{ io_set_conn_val( [ int $conn, string $key, int $val ] ) */
 PHP_FUNCTION(io_set_conn_val)
 {
 	unsigned long conn;
@@ -881,6 +918,9 @@ PHP_FUNCTION(io_set_conn_val)
 	ZEND_PARSE_PARAMETERS_END();
 
 	struct ConnInfo *info_ptr = (struct ConnInfo *)conn;
+	if (info_ptr == NULL)
+		RETURN_NULL();
+
 	if (strcmp(key, "connfd") == 0) {
 		info_ptr->connfd = val;
 	}
@@ -888,7 +928,7 @@ PHP_FUNCTION(io_set_conn_val)
 		info_ptr->event = val;
 	}
 	if (strcmp(key, "buffer") == 0) {
-		strcpy(info_ptr->buffer, (char *)val);
+		memmove(info_ptr->buffer, (char *)val, strlen((char *)val) + 1);
 	}
 	if (strcmp(key, "buffer_length") == 0) {
 		info_ptr->buffer_length = val;
@@ -901,7 +941,7 @@ PHP_FUNCTION(io_set_conn_val)
 }
 /* }}}*/
 
-/* {{{ int io_get_conn_val( [ $conn, $key ] ) */
+/* {{{ long io_get_conn_val( [ int $conn, string $key ] ) */
 PHP_FUNCTION(io_get_conn_val)
 {
 	unsigned long conn;
@@ -915,6 +955,9 @@ PHP_FUNCTION(io_get_conn_val)
 	ZEND_PARSE_PARAMETERS_END();
 
 	struct ConnInfo *info_ptr = (struct ConnInfo *)conn;
+	if (info_ptr == NULL)
+		RETURN_LONG(-1);
+
 	if (strcmp(key, "connfd") == 0) {
 		result = info_ptr->connfd;
 	}
@@ -934,9 +977,10 @@ PHP_FUNCTION(io_get_conn_val)
 }
 /* }}}*/
 
-/* {{{ io_generate_cqes( [ int $len ] ) */
+/* {{{ long io_generate_cqes( [ int $len ] ) */
 PHP_FUNCTION(io_generate_cqes)
 {
+	int i;
 	unsigned long len;
 
 	ZEND_PARSE_PARAMETERS_START(1, 1)
@@ -944,14 +988,17 @@ PHP_FUNCTION(io_generate_cqes)
 	ZEND_PARSE_PARAMETERS_END();
 
 	struct io_uring_cqe **cqes = malloc(sizeof(struct io_uring_cqe *) * len);
-	//struct io_uring_cq *cqes[len];
-	//php_printf("cqes=%p, %lu\n", cqes, (unsigned long)cqes);
+
+	if (cqes == NULL) {
+		RETURN_LONG(-1);
+	}
+	memset(cqes, 0, sizeof(struct io_uring_cqe *) * len);
 
 	RETURN_LONG((unsigned long)cqes);
 }
 /* }}}*/
 
-/* {{{ io_get_cqe_by_index( [ int $cqes, int $index ] ) */
+/* {{{ long io_get_cqe_by_index( [ int $cqes, int $index ] ) */
 PHP_FUNCTION(io_get_cqe_by_index)
 {
 	unsigned long cqes;
@@ -962,13 +1009,21 @@ PHP_FUNCTION(io_get_cqe_by_index)
 		Z_PARAM_LONG(index)
 	ZEND_PARSE_PARAMETERS_END();
 
-	//RETURN_LONG((unsigned long)((struct io_uring_cqe **)cqes)[index]);
 	struct io_uring_cqe **cqe_array = (struct io_uring_cqe **)cqes;
-	RETURN_LONG((unsigned long)cqe_array[index]);
+	if (!cqe_array) {
+		RETURN_LONG(-1);
+	}
+
+	struct io_uring_cqe *cqe = cqe_array[index];
+	if (!cqe) {
+		RETURN_LONG(-2);
+	}
+	RETURN_LONG((unsigned long)cqe);
+	//RETURN_LONG((unsigned long)cqe_array[index]);
 }
 /* }}}*/
 
-/* {{{ long io_free_conn( [ int $conn ] ) */
+/* {{{ io_free_conn( [ int $conn ] ) */
 PHP_FUNCTION(io_free_conn)
 {
 	unsigned long conn;
@@ -996,10 +1051,10 @@ PHP_FUNCTION(io_close_fd)
 	ZEND_PARSE_PARAMETERS_END();
 
 	if (close(fd) == -1) {
-		RETURN_FALSE;
+		php_printf("close fd error!\n");
 	}
 
-	RETURN_TRUE;
+	RETURN_NULL();
 }
 /* }}}*/
 
@@ -1045,7 +1100,7 @@ PHP_FUNCTION(io_free_ring)
 }
 /* }}}*/
 
-/* {{{ io_buffer2Str( [ int $buffer ] ) */
+/* {{{ string io_buffer2Str( [ int $buffer, int $len ] ) */
 PHP_FUNCTION(io_buffer2Str)
 {
 	unsigned long buffer;
@@ -1056,16 +1111,18 @@ PHP_FUNCTION(io_buffer2Str)
 	ZEND_PARSE_PARAMETERS_END();
 
 	char *buff_str = (char *)buffer;
-	if (len > strlen(buff_str)) {
-		len = strlen(buff_str);
+	size_t buffer_len = strnlen(buff_str, len); // 安全地获取实际的字符串长度
+
+	if (len > buffer_len) {
+		len = buffer_len;
 	}
 	buff_str[len] = '\0';
-	zend_string *str = zend_string_init(buff_str, strlen(buff_str), 0);
+	zend_string *str = zend_string_init(buff_str, len, 0);
 	RETURN_STR(str);
 }
 /* }}}*/
 
-/* {{{ io_str2Buffer( [ int $buffer, string $str ] ) */
+/* {{{ long io_str2Buffer( [ int $buffer, string $str ] ) */
 PHP_FUNCTION(io_str2Buffer)
 {
 	unsigned long buffer;

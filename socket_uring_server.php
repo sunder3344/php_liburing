@@ -1,6 +1,4 @@
 <?php
-ini_set('memory_limit', '1024M');
-
 const EVENT_ACCEPT = 0;
 const EVENT_READ = 1;
 const EVENT_WRITE = 2;
@@ -17,20 +15,21 @@ const IORING_SETUP_SQPOLL = 2;
 $server_port = 8888;
 $server_addr = "0.0.0.0";
 
-function set_accept_event($ring, $sfd, $flags = 0) {
-	global $pool;
+function set_accept_event($ring, $sfd, $clientAddr, $clilen, $flags = 0) {
+// 	global $pool;
 	$sqe = io_uring_get_sqe($ring);
-	io_uring_prep_accept($sqe, $sfd, $flags);
+	io_uring_prep_accept($sqe, $sfd, $clientAddr, $clilen, $flags);
 	
-	$info = get_conn_info($pool);
+// 	$info = get_conn_info($pool);
+	$info = io_get_conn_info();
 	if ($info) {
 		io_set_conn_val($info, "connfd", $sfd);
 		io_set_conn_val($info, "event", EVENT_ACCEPT);
 		io_uring_sqe_set_data($sqe, $info, IO_TYPE_SOCKET);
 	} else {
 		echo "Get conn failed...";
-		//io_free_conn($info);
-		$pool = return_conn_info($pool, $info);
+		io_free_conn($info);
+// 		$pool = return_conn_info($pool, $info);
 	}
 }
 
@@ -81,12 +80,14 @@ if ($listenResult === false) {
 //init uring
 $ring = io_create_ring();
 $params = io_init_params();
-$pool = init_conn_pool(MAX_CONN);
+// $pool = init_conn_pool(MAX_CONN);
 io_setup_params($params, "flags", IORING_SETUP_SQPOLL);
 io_setup_params($params, "sq_thread_idle", 2000);
-io_uring_queue_init_params(RING_LEN, $ring, $params);
+$res = io_uring_queue_init_params(RING_LEN, $ring, $params);
+if ($res < 0) {
+	die("set uring param error!");
+}
 
-//$sqe = io_uring_get_sqe($ring);
 $stream = socket_export_stream($serverSocket);
 if ($stream === false) {
 	die("socket_export_stream() error\n");
@@ -94,94 +95,102 @@ if ($stream === false) {
 
 //file description
 $sockfd = (int) $stream;
+$clilen = io_create_socket_len();
+$clientAddr = io_create_socket_addr();
 
-set_accept_event($ring, $sockfd, 0);
+set_accept_event($ring, $sockfd, $clientAddr, $clilen, 0);
 
 echo "waiting for client: ".$sockfd."...\n";
 
 //receive client msg...
+$cqe = io_generate_cqe();
+$reserve_cqe = $cqe;
 while (true) {
 	$tmp = io_uring_submit($ring);
-	$cqe = io_generate_cqe();
+	if ($tmp < 0) {
+		continue;
+	}
+	
 	//waiting here
 	$new_cqe = io_uring_wait_cqe($ring, $cqe);
-	$reserve_cqe = $cqe;
+	if ($new_cqe < 0) {
+		continue;
+	}
 	
 	$cqes = io_generate_cqes(CQE_LEN);
+
 	$cqecount = io_uring_peek_batch_cqe($ring, $cqes, CQE_LEN);
 	for ($i = 0; $i < $cqecount; $i++) {
 		$new_cqe = io_get_cqe_by_index($cqes, $i);
 		$ci = io_uring_cqe_get_data($new_cqe, IO_TYPE_SOCKET);
-		if (!$ci) {
-			io_free_cqe($new_cqe);
+		if ($ci < 0) {
 			continue;
 		}
 		if (io_get_conn_val($ci, "event") == EVENT_ACCEPT) {
-			var_dump("------------");
 			if (io_get_cqe_res($new_cqe) < 0) {
 				echo "cqe->res=".io_get_cqe_res($new_cqe);
-				//io_free_conn($ci);
-				$pool = return_conn_info($pool, $ci);
+				io_free_conn($ci);
+// 				$pool = return_conn_info($pool, $ci);
 				continue;
 			}
 			$connfd = io_get_cqe_res($new_cqe);				//if cqe->res > 0, it means success，res is new fd
-			$new_info = get_conn_info($pool);
+// 			$new_info = get_conn_info($pool);
+			$new_info = io_get_conn_info();
 			if ($new_info) {
 				set_recv_event($ring, $connfd, $new_info, 0);
 			} else {
 				echo "Get conn failed!";
 				io_close_fd(io_get_conn_val($ci, "connfd"));
-				//io_free_conn($ci);
-				$pool = return_conn_info($pool, $ci);
+				io_free_conn($ci);
+// 				$pool = return_conn_info($pool, $ci);
 				continue;
 			}
-			set_accept_event($ring, io_get_conn_val($ci, "connfd"), 0);
-			//io_free_conn($ci);			//todo 要不要这里就释放！！
-			$pool = return_conn_info($pool, $ci);
+			set_accept_event($ring, io_get_conn_val($ci, "connfd"), $clientAddr, $clilen, 0);
+			io_free_conn($ci);
+// 			$pool = return_conn_info($pool, $ci);
 		} else if (io_get_conn_val($ci, "event") == EVENT_READ) {
-			var_dump("============");
+			
 			if (io_get_cqe_res($new_cqe) == 0) {
 				echo "client close\n";
 				io_close_fd(io_get_conn_val($ci, "connfd"));
-				//io_free_conn($ci);
-				$pool = return_conn_info($pool, $ci);
+				io_free_conn($ci);
+// 				$pool = return_conn_info($pool, $ci);
 			} else if (io_get_cqe_res($new_cqe) < 0) {
 				echo "read error, cqe_res=".io_get_cqe_res($new_cqe);
 				io_close_fd(io_get_conn_val($ci, "connfd"));
-				//io_free_conn($ci);
-				$pool = return_conn_info($pool, $ci);
+				io_free_conn($ci);
+// 				$pool = return_conn_info($pool, $ci);
 			} else {
-				/*$buff = io_get_conn_val($ci, "buffer");
+				//self-defined response
+				$buff = io_get_conn_val($ci, "buffer");
 				$buff_len = io_get_cqe_res($new_cqe);
 				$buff_str = io_buffer2Str($buff, $buff_len);
 				echo "recv: ".$buff.", ".$buff_str.PHP_EOL;
-				io_set_conn_val($ci, "buffer_length", io_get_cqe_res($new_cqe));*/
+				io_set_conn_val($ci, "buffer_length", io_get_cqe_res($new_cqe));
 				
-				//echo response
-				set_send_event($ring, io_get_conn_val($ci, "connfd"), $ci, io_get_cqe_res($new_cqe), 0);
-				
-				//self-defined response
-				/*$echoStr = "什么？开玩笑？？!!!这就是你的回答：".$buff_str;
+				$echoStr = "什么？开玩笑？？!!!这就是你的回答：".$buff_str;
 				io_str2Buffer($buff, $echoStr);
 				io_set_conn_val($ci, "buffer", $buff);
 				io_set_conn_val($ci, "buffer_length", strlen($echoStr));
-				set_send_event($ring, io_get_conn_val($ci, "connfd"), $ci, strlen($echoStr), 0);*/
+				set_send_event($ring, io_get_conn_val($ci, "connfd"), $ci, strlen($echoStr), 0);
+				
+				//echo response
+				//set_send_event($ring, io_get_conn_val($ci, "connfd"), $ci, io_get_cqe_res($new_cqe), 0);
 			}
 		} else if (io_get_conn_val($ci, "event") == EVENT_WRITE) {
-			var_dump("**************");
 			if (io_get_cqe_res($new_cqe) < 0) {
 				echo ("write error, cqe_res=".io_get_cqe_res($new_cqe));
 				io_close_fd(io_get_conn_val($ci, "connfd"));
-				//io_free_conn($ci);
-				$pool = return_conn_info($pool, $ci);
+				io_free_conn($ci);
+// 				$pool = return_conn_info($pool, $ci);
 			}
 			set_recv_event($ring, io_get_conn_val($ci, "connfd"), $ci, 0);
 		}
 	}
 	io_uring_cq_advance($ring, $cqecount);
-	io_free_cqe($reserve_cqe);
 	io_free_cqes($cqes);
 }
+io_free_cqe($reserve_cqe);
 
 //close socket
 socket_close($serverSocket);
@@ -190,5 +199,6 @@ io_free_params($params);
 //close ring
 io_free_ring($ring);
 //free connection pool
-release_conn_info($pool);
+//release_conn_info($pool);
+io_free_socket_addr($clientAddr);
 ?>
