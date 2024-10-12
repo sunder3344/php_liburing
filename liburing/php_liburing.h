@@ -1,5 +1,6 @@
 /* liburing extension for PHP */
 
+#include <liburing.h>
 #ifndef PHP_LIBURING_H
 # define PHP_LIBURING_H
 

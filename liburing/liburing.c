@@ -18,7 +18,6 @@
 #include "php_liburing.h"
 #include "liburing_arginfo.h"
 #include <liburing.h>
-//#include "liburing_head.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
@@ -1177,7 +1176,7 @@ PHP_MINFO_FUNCTION(liburing)
 /* {{{ PHP_MINIT_FUNCTION */
 PHP_MINIT_FUNCTION(liburing)
 {
-	//add_liburing_constants(module_number);
+	register_liburing_symbols(module_number);
 }
 /* }}} */
 

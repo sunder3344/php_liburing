@@ -8,10 +8,6 @@ const RING_LEN = 1024;			//ring queue num
 const MAXLINE = 4096;			//buffer length
 const MAX_CONN = 4096;			//connect_pool length
 
-const IO_TYPE_DISK = 1;
-const IO_TYPE_SOCKET = 2;
-const IORING_SETUP_SQPOLL = 2;
-
 $server_port = 8888;
 $server_addr = "0.0.0.0";
 
