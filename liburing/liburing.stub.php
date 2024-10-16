@@ -565,6 +565,8 @@ function io_query_data(int $iodata, string $key): int {}
 
 function io_free_data(int $iodata): void {}
 
+function io_uring_prep_timeout(int $sqe, int $sec, int $nsec, int $count, int $flag): void {}
+
 function io_uring_prep_readv(int $sqe, object $file, int $iodata, int $nr_vecs, int $offset): int {}
 
 function io_uring_sqe_set_data(int $sqe, int $iodata, int $type): void {};

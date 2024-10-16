@@ -369,6 +369,32 @@ PHP_FUNCTION(io_free_data)
 }
 /* }}}*/
 
+/* {{{ long io_uring_prep_timeout( [ int $sqe, int $sec, int $nsec, int $count, int $flag ] ) */
+PHP_FUNCTION(io_uring_prep_timeout)
+{
+	int result = 0;
+	unsigned long sqe;
+	unsigned long sec;
+	unsigned long nsec;
+	unsigned long count;
+	unsigned long flag;
+
+	ZEND_PARSE_PARAMETERS_START(5, 5)
+		Z_PARAM_LONG(sqe)
+		Z_PARAM_LONG(sec)
+		Z_PARAM_LONG(nsec)
+		Z_PARAM_LONG(count)
+		Z_PARAM_LONG(flag)
+	ZEND_PARSE_PARAMETERS_END();
+
+	struct __kernel_timespec timeout;
+	timeout.tv_sec = sec;  			//timeout secs
+	timeout.tv_nsec = nsec;			//timeout nanosecs
+	io_uring_prep_timeout((struct io_uring_sqe *)sqe, &timeout, count, flag);
+	RETURN_NULL();
+}
+/* }}}*/
+
 /* {{{ long io_uring_prep_readv( [ int $sqe, object $file, int $iodata, int $nr_vecs, int offset ] ) */
 PHP_FUNCTION(io_uring_prep_readv)
 {
