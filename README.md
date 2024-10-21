@@ -39,6 +39,9 @@ make && make install
 
 [socket_uring_web.php](./demo/socket_uring_server.php): a simple demo for web server
 
+
+in order to use asynchronous I/O in easy way, this [fast_copy](https://github.com/sunder3344/fast_copy) extension can give you a new choice.
+
 # API and methods
 -----
 
