@@ -8,6 +8,11 @@ const RING_LEN = 1024;			//ring queue num
 const MAXLINE = 4096;			//buffer length
 const SERVER_DIR = "/home/sunder/bin/php_liburing";
 
+if (!defined('IPPROTO_TCP')) define('IPPROTO_TCP', 6);		  //if not defined, search /usr/include/netinet
+if (!defined('TCP_KEEPIDLE')) define('TCP_KEEPIDLE', 4);
+if (!defined('TCP_KEEPINTVL')) define('TCP_KEEPINTVL', 5);
+if (!defined('TCP_KEEPCNT')) define('TCP_KEEPCNT', 6);
+
 $server_port = 8888;
 $server_addr = "0.0.0.0";
 
@@ -70,12 +75,46 @@ $serverSocket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
 if ($serverSocket === false) {
 	die("socket_create() fail: " . socket_strerror(socket_last_error()) . "\n");
 }
-if (defined('SO_REUSEPORT')) {
+//addr reuse
+if (defined('SO_REUSEADDR')) {
 	socket_set_option($serverSocket, SOL_SOCKET, SO_REUSEADDR, 1);
 }
-
+//port reuse
 if (defined('SO_REUSEPORT')) {
 	socket_set_option($serverSocket, SOL_SOCKET, SO_REUSEPORT, 1);
+}
+//socket recv timeout
+$timeval = array("sec" => 3, "usec" => 0);
+if (defined('SO_RCVTIMEO')) {
+	socket_set_option($serverSocket, SOL_SOCKET, SO_RCVTIMEO, $timeval);
+}
+//socket send timeout
+if (defined('SO_SNDTIMEO')) {
+	socket_set_option($serverSocket, SOL_SOCKET, SO_SNDTIMEO, $timeval);
+}
+//linger setup
+if (defined('SO_LINGER')) {
+	$linger = [
+			"l_onoff" => 1,   // open SO_LINGER
+			"l_linger" => 0   // set 0, close immediately
+	];
+	socket_set_option($serverSocket, SOL_SOCKET, SO_LINGER, $linger);
+}
+//set keepalive
+if (defined('SO_KEEPALIVE')) {
+	socket_set_option($serverSocket, SOL_SOCKET, SO_KEEPALIVE, 1);
+}
+//set Keepalive probe interval
+if (defined('TCP_KEEPIDLE')) {
+	socket_set_option($serverSocket, IPPROTO_TCP, TCP_KEEPIDLE, 60);			//60 secs
+}
+//probe send interval
+if (defined('TCP_KEEPINTVL')) {
+	socket_set_option($serverSocket, IPPROTO_TCP, TCP_KEEPINTVL, 10);			//10 secs
+}
+//probe num
+if (defined('TCP_KEEPCNT')) {
+	socket_set_option($serverSocket, IPPROTO_TCP, TCP_KEEPCNT, 3);				//try 3 times
 }
 	
 //socket bind
@@ -93,9 +132,10 @@ if ($listenResult === false) {
 //init uring
 $ring = io_create_ring();
 $params = io_init_params();
-io_setup_params($params, "flags", IORING_SETUP_SQPOLL);
-io_setup_params($params, "sq_thread_idle", 2000);
-io_uring_queue_init_params(RING_LEN, $ring, $params);
+$res = io_uring_queue_init_params(RING_LEN, $ring, $params);
+if ($res < 0) {
+	die("set uring param error!");
+}
 
 //$sqe = io_uring_get_sqe($ring);
 $stream = socket_export_stream($serverSocket);
@@ -134,7 +174,7 @@ while (true) {
 	for ($i = 0; $i < $cqecount; $i++) {
 		$new_cqe = io_get_cqe_by_index($cqes, $i);
 		$ci = io_uring_cqe_get_data($new_cqe, IO_TYPE_SOCKET);
-		if (!$ci) {
+		if ($ci < 0) {
 			continue;
 		}
 		if (io_get_conn_val($ci, "event") == EVENT_ACCEPT) {
@@ -143,7 +183,7 @@ while (true) {
 				io_free_conn($ci);
 				continue;
 			}
-			$connfd = io_get_cqe_res($new_cqe);
+			$connfd = io_get_cqe_res($new_cqe);							//if cqe->res > 0, it means success，res is new fd
 			$new_info = io_get_conn_info();
 			if ($new_info) {
 				set_recv_event($ring, $connfd, $new_info, 0);

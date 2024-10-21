@@ -5,8 +5,8 @@ The php_liburing extension provides an API for [io_uring](https://github.com/axb
 
 You can send comments, patches, questions [here on github](https://github.com/sunder3344/php_liburing/issues), to sunder3344@gmail.com
 
-# environmenet support
-This extension only support php8.*+ and linux 5.10+
+# environment support
+This extension only support php8.*+ and Linux 5.10+
 
 
 # Installing/Configuring
@@ -15,15 +15,29 @@ This extension only support php8.*+ and linux 5.10+
 ## Installation
 
 ~~~
-# go into liburing and execute the commands belowd
+# go into liburing and execute the commands below
 /your_php_install_file/bin/phpize
 
 ./configure --with-php-config=/your_php_install_file/bin/php-config --with-liburing=/usr/include
 
 make && make install
 
-# finally add the new extension "morse.so" into your php.ini file and reload your php-fpm
+# finally add the new extension "liburing.so" into your php.ini file and reload your php-fpm
 ~~~
+
+# Demo
+-----
+## description
+
+[io_uring-cp.php](./demo/io_uring-cp.php): the php version of the [io_uring official demo](https://github.com/axboe/liburing/blob/master/examples/io_uring-cp.c)
+
+[link-cp.php](./demo/link-cp.php): the php version of the [io_uring official demo](https://github.com/axboe/liburing/blob/master/examples/link-cp.c)
+
+[socket_uring_server.php](./demo/socket_uring_server.php): a demo for socket server
+
+[socket_uring_server_pool.php](./demo/socket_uring_server_pool.php): a simple demo for socket server with memory pool(not very stable, should be improved later)
+
+[socket_uring_web.php](./demo/socket_uring_server.php): a simple demo for web server
 
 # API and methods
 -----
@@ -123,9 +137,9 @@ _**Description**_:  update the value of `struct io_data *`
 	function io_update_data(int $iodata, string $key, int $val): void {}
 ```
 
-*iodata*: the pointer of `struct io_data *`  
-*key*: key name in `struct io_data *`, such as `read`, `first_offset`, `offset`, `first_len`, `iov_base`  
-*val*: the value of the key
+*iodata*: long, the pointer of `struct io_data *`  
+*key*: string, key name in `struct io_data *`, such as `read`, `first_offset`, `offset`, `first_len`, `iov_base`  
+*val*: int, the value of the key
 
 ##### *Return value*  
 no return value
@@ -142,8 +156,8 @@ _**Description**_: query the key value of `struct io_data *`
 	function io_query_data(int $iodata, string $key): int {}
 ```
 
-*iodata*: the pointer of `struct io_data *`  
-*key*: key name in `struct io_data *`, such as `read`, `first_offset`, `offset`, `first_len`, `iov_base`  
+*iodata*: long, the pointer of `struct io_data *`  
+*key*: string, key name in `struct io_data *`, such as `read`, `first_offset`, `offset`, `first_len`, `iov_base`  
 
 ##### *Return value*
 *INT*: `>0` on success(if key = 'iov_base', the return value is the pointer of `ptr_t iov_base` in `struct iovec`).
@@ -160,7 +174,7 @@ _**Description**_: free the memory of `struct io_data *` which you created by fu
 	function io_free_data(int $iodata): void {}
 ```
 
-*iodata*: the pointer of `struct io_data *` 
+*iodata*: long, the pointer of `struct io_data *` 
 
 ##### *Return value*
 no return value
@@ -177,11 +191,11 @@ _**Description**_:  prepare a timeout request.
 	function io_uring_prep_timeout(int $sqe, int $sec, int $nsec, int $count, int $flag): void {}
 ```
 
-*sqe*: the pointer of `struct io_uring_sqe *`  
-*sec*: seconds  
-*nsec*: nano seconds  
-*count*: a timeout count of count completion entries  
-*flag*: The flag argument holds modifier flags for the request.	
+*sqe*: long, the pointer of `struct io_uring_sqe *`  
+*sec*: int, seconds  
+*nsec*: int, nano seconds  
+*count*: int, a timeout count of count completion entries  
+*flag*: int, The flag argument holds modifier flags for the request.	
 
 ##### *Return value*
 no return value
@@ -198,11 +212,11 @@ _**Description**_:  prepare vector I/O read request.
 	function io_uring_prep_readv(int $sqe, object $file, int $iodata, int $nr_vecs, int $offset): int {}
 ```
 
-*sqe*: the pointer of `struct io_uring_sqe *`  
-*file*: php file descriptor  
-*iodata*: the pointer of `struct io_data *`  
-*nr_vecs*: The submission queue entry sqe is setup to use the file descriptor fd to start reading nr_vecs into the iovecs array at the specified offset.  	
-*offset*: the specified offset of iovecs array.	
+*sqe*: long, the pointer of `struct io_uring_sqe *`  
+*file*: obj, php file descriptor  
+*iodata*: long, the pointer of `struct io_data *`  
+*nr_vecs*: long, The submission queue entry sqe is setup to use the file descriptor fd to start reading nr_vecs into the iovecs array at the specified offset.  	
+*offset*: long, the specified offset of iovecs array.	
 
 ##### *Return value*
 no return value
@@ -219,9 +233,9 @@ _**Description**_: set user data for submission queue event.
 	function io_uring_sqe_set_data(int $sqe, int $iodata, int $type): void {};
 ```
 
-*sqe*: the pointer of `struct io_uring_sqe *`  
-*iodata*: the pointer of `struct io_data *`  
-*type*: `IO_TYPE_SOCKET` for socket setup, `IO_TYPE_DISK` for disk I/O  
+*sqe*: long, the pointer of `struct io_uring_sqe *`  
+*iodata*: long, the pointer of `struct io_data *`  
+*type*: int, only support 2 types: `IO_TYPE_SOCKET` for socket setup, `IO_TYPE_DISK` for disk I/O  
 
 ##### *Return value*
 no return value
@@ -238,11 +252,11 @@ _**Description**_: prepare vector I/O write request.
 	function io_uring_prep_writev(int $sqe, object $file, int $iodata, int $nr_vecs, int $offset): int {}
 ```
 
-*sqe*: the pointer of `struct io_uring_sqe *`  
-*file*: php file descriptor  
-*iodata*: the pointer of `struct io_data *`  
-*nr_vecs*: The submission queue entry sqe is setup to use the file descriptor fd to start writing nr_vecs from the iovecs array at the specified offset.  	
-*offset*: the specified offset of iovecs array.	
+*sqe*: long, the pointer of `struct io_uring_sqe *`  
+*file*: int, php file descriptor  
+*iodata*: long, he pointer of `struct io_data *`  
+*nr_vecs*: long, The submission queue entry sqe is setup to use the file descriptor fd to start writing nr_vecs from the iovecs array at the specified offset.  	
+*offset*: long, the specified offset of iovecs array.	
 
 ##### *Return value*
 no return value
@@ -259,7 +273,7 @@ _**Description**_: submit requests to the submission queue.
 	function io_uring_submit(int $ring): int {}
 ```
 
-*ring*: the pointer of `struct io_uring *`  
+*ring*: long, the pointer of `struct io_uring *`  
 
 ##### *Return value*
 *INT*: `>=0` on success, `<0` on error
@@ -291,8 +305,8 @@ _**Description**_: wait for one io_uring completion event.
 	function io_uring_wait_cqe(int $ring, int $cqe) : int {}
 ```
 
-*ring*: the pointer of `struct io_uring *`  
-*cqe*: the pointer of `struct io_uring_cqe *`  
+*ring*: long, the pointer of `struct io_uring *`  
+*cqe*: long, the pointer of `struct io_uring_cqe *`  
 
 ##### *Return value*
 *INT*: `>0` on success(it will return new pointer of `struct io_uring_cqe *`, you should replace the original `struct io_uring_cqe *` with this one), `<=0` on error
@@ -309,8 +323,8 @@ _**Description**_: check if an io_uring completion event is available.
 	function io_uring_peek_cqe(int $ring, int $cqe) : int {}
 ```
 
-*ring*: the pointer of `struct io_uring *`  
-*cqe*: the pointer of `struct io_uring_cqe *`  
+*ring*: long, the pointer of `struct io_uring *`  
+*cqe*: long, the pointer of `struct io_uring_cqe *`  
 
 ##### *Return value*
 *INT*: `>0` on success(it will return new pointer of `struct io_uring_cqe *`, you should replace the original `struct io_uring_cqe *` with this one), `<=0` on error
@@ -327,8 +341,8 @@ _**Description**_: set the `flags` of `struct io_uring_cqe *`
 	function io_cqe_set_flag(int $cqe, int $flag): void {}
 ```
 
-*cqe*: the pointer of `struct io_uring_cqe *`  
-*flag*: the flag value, such as `IORING_CQE_F_BUFFER`(for all the flags please look at the liburing offical doc)  
+*cqe*: long, the pointer of `struct io_uring_cqe *`  
+*flag*: int, the flag value, such as `IORING_CQE_F_BUFFER`(for all the flags please look at the [io_uring](https://github.com/axboe/liburing) offical doc)  
 
 ##### *Return value*
 no return value
@@ -352,8 +366,8 @@ _**Description**_: mark io_uring completion event as consumed.
 	function io_uring_cqe_seen(int $ring, int $cqe) : int {}
 ```
 
-*ring*: the pointer of `struct io_uring *`  
-*cqe*: the pointer of `struct io_uring_cqe *`  
+*ring*: long, the pointer of `struct io_uring *`  
+*cqe*: long, the pointer of `struct io_uring_cqe *`  
 
 ##### *Return value*
 *INT*: `>0` on success(it will return pointer of `struct io_uring_cqe *`)
@@ -370,8 +384,8 @@ _**Description**_: get user data for completion event.
 	function io_uring_cqe_get_data(int $cqe, int $type) : int {}
 ```
 
-*cqe*: the pointer of `struct io_uring_cqe *`  
-*type*: `IO_TYPE_SOCKET` for socket setup, `IO_TYPE_DISK` for disk I/O    
+*cqe*: long, the pointer of `struct io_uring_cqe *`  
+*type*: int, only support 2 types: `IO_TYPE_SOCKET` for socket setup, `IO_TYPE_DISK` for disk I/O    
 
 ##### *Return value*
 *INT*: `>0` on success(it will return pointer of `struct io_data *`), `<=0` on error
@@ -388,7 +402,7 @@ _**Description**_: get the `res` value of `struct io_uring_cqe *`
 	function io_get_cqe_res(int $cqe): int {}
 ```
 
-*cqe*: the pointer of `struct io_uring_cqe *`  
+*cqe*: long, the pointer of `struct io_uring_cqe *`  
 
 ##### *Return value*
 *INT*: return the `res` of `struct io_uring_cqe *`
@@ -405,7 +419,7 @@ _**Description**_: free the pointer of `struct io_uring_cqe *` which you created
 	function io_free_cqe(int $cqe): void {}
 ```
 
-*cqe*: the pointer of `struct io_uring_cqe *`  
+*cqe*: long, the pointer of `struct io_uring_cqe *`  
 
 ##### *Return value*
 no return value 
@@ -422,8 +436,8 @@ _**Description**_: set the `flags` of `struct io_uring_sqe *`
 	function io_sqe_set_flag(int $sqe, int $flag): void {}
 ```
 
-*sqe*: the pointer of `struct io_uring_sqe *`  
-*flag*: the flag value, such as `IOSQE_IO_LINK`(for all the flags please look at the liburing offical doc)   
+*sqe*: long, the pointer of `struct io_uring_sqe *`  
+*flag*: int, the flag value, such as `IOSQE_IO_LINK`(for all the flags please look at the [io_uring](https://github.com/axboe/liburing) offical doc)    
 
 ##### *Return value*
 no return value 
@@ -447,7 +461,7 @@ _**Description**_: tear down io_uring submission and completion queues.
 	function io_uring_queue_exit(int $ring): void {}
 ```
 
-*ring*: the pointer of `struct io_uring *`  
+*ring*: long, the pointer of `struct io_uring *`  
 
 ##### *Return value*
 no return value 
@@ -479,9 +493,9 @@ _**Description**_: setup the attribute of `struct io_uring_params *`(`sq_entries
 	function io_setup_params(int $params, string $attr, int $val): void {}
 ```
 
-*params*: the pointer of `struct io_uring_params *`  
-*attr*: attribute name(`sq_entries`, `cq_entries`, `flags`, `sq_thread_cpu`, `sq_thread_idle`, `features`, `wq_fd`)  
-*val*: the attribute value
+*params*: long, the pointer of `struct io_uring_params *`  
+*attr*: string, attribute name(`sq_entries`, `cq_entries`, `flags`, `sq_thread_cpu`, `sq_thread_idle`, `features`, `wq_fd`)  
+*val*: int, the attribute value
 
 ##### *Return value*
 no return value 
@@ -726,7 +740,7 @@ _**Description**_: setup the value of `struct ConnInfo *`
 
 *conn*: long, the pointer of `struct ConnInfo *`  
 *key*: long, the attribute of `struct ConnInfo *`(`connfd`, `event`, `buffer`, `buffer_length`)  
-*val*: long, the value of the key(for `buffer`, you should convert string to `char *`, you can use function `io_str2Buffer`).  
+*val*: long, the value of the key(for `buffer`, you should convert string to `char *`, use function `io_str2Buffer` to do it).  
 
 ##### *Return value*
 no return value
