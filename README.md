@@ -39,8 +39,28 @@ make && make install
 
 [socket_uring_web.php](./demo/socket_uring_server.php): a simple demo for web server
 
+<img src="./pic/perf-php.svg" alt="Alt Text" height="500"/>
 
-in order to use asynchronous I/O in easy way, this [fast_copy](https://github.com/sunder3344/fast_copy) extension can give you a new choice.
+here is the flame graph of socket_uring_server.php(I put 1500 reqs/secs to the uring_server), we can see the high performance of this extension which support by io_uring.
+
+Compare the disk I/O efficiency between php_liburing and linux `cp` command, here is the execution time:
+
+<img src="./pic/cp.png" alt="Alt Text"/>
+
+<img src="./pic/io_uring-cp.php.png" alt="Alt Text"/>
+
+And I also generate the flame graph of these two:
+<img src="./pic/cp-flame.svg" alt="Alt Text" height="500"/>
+
+(`cp` flame graph)
+
+
+
+<img src="./pic/io_uring-cp-flame.svg" alt="Alt Text" height="500"/>
+
+(io_uring-cp flame graph)
+
+Finally in order to use asynchronous I/O in easy way, this [fast_copy](https://github.com/sunder3344/fast_copy) extension can give you a new choice.
 
 # API and methods
 -----
