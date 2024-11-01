@@ -54,8 +54,6 @@ And I also generate the flame graph of these two:
 
 (`cp` flame graph)
 
-
-
 <img src="./pic/io_uring-cp-flame.svg" alt="Alt Text" height="500"/>
 
 (io_uring-cp flame graph)
