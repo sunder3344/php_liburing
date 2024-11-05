@@ -699,7 +699,7 @@ _**Description**_: check if some io_uring completion events are available.
 *cqe_len*: int, the queue number of cqes  
 
 ##### *Return value*
-*INT*: `>=0` on success(return the successful available number of cqes)
+*INT*: `>=0` on success(return the successful available number of cqes) 
 
 -----
 
